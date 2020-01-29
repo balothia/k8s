@@ -1,0 +1,22 @@
+kubectl create -f pod-definition.yml
+kubectl get pods
+kubectl get nodes
+kubectl describe pod myapp-pod
+kubectl delete pod webapp
+
+kubectl get replicationcontroller
+kubectl get replicaset
+kubectl replace -f replicaset-definition.yml
+kubectl scale --replicas=6 -f replicaset-definition.yml
+kubectl scale --replicas=6 replicaset myapp-replicaset
+kubectl delete replicaset myapp-replicaset
+kubectl edit replicaset new-replica-set
+
+
+vim commands for writing yaml or yml files
+au BufNewFile,BufRead *.yaml,*.yml set et ts=2 sw=2
+OR
+" add yaml stuffs
+au! BufNewFile,BufReadPost *.{yaml,yml} set filetype=yaml foldmethod=indent
+autocmd FileType yaml setlocal ts=2 sts=2 sw=2 expandtab
+
