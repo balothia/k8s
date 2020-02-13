@@ -1,0 +1,52 @@
+for i in {1..5}
+do
+   kubectl create ns mynamespace$i
+   kubectl run mydeploy$i --image nginx --replicas 1
+   kubectl run mypod$i --image nginx --restart Never
+   kubectl expose pod mypod$i --name mypod$i-svc --type NodePort --port 80
+done
+
+kubectl get all #ensure everything is up and running
+
+ETCDCTL_API=3 etcdctl member list \
+  --endpoints https://[127.0.0.1]:2379 \
+  --cacert /etc/kubernetes/pki/etcd/ca.crt \
+  --cert /etc/kubernetes/pki/etcd/server.crt \
+  --key /etc/kubernetes/pki/etcd/server.key
+
+ETCDCTL_API=3 etcdctl snapshot save /tmp/snapshot-pre-boot.db \
+  --endpoints https://[127.0.0.1]:2379 \
+  --cacert /etc/kubernetes/pki/etcd/ca.crt \
+  --cert /etc/kubernetes/pki/etcd/server.crt \
+  --key /etc/kubernetes/pki/etcd/server.key
+
+ETCDCTL_API=3 etcdctl snapshot status /tmp/snapshot-pre-boot.db \
+  --endpoints https://[127.0.0.1]:2379 \
+  --cacert /etc/kubernetes/pki/etcd/ca.crt \
+  --cert /etc/kubernetes/pki/etcd/server.crt \
+  --key /etc/kubernetes/pki/etcd/server.key
+
+kubectl delete all --all
+
+kubectl get all  #confirm everything created has been deleted
+
+mv /etc/kubernetes/manifests/kube-apiserver.yaml /etc/kubernetes
+kubectl get all #should get errors about connecting to apiserver which is correct as we have taken apiserver offline
+
+ETCDCTL_API=3 etcdctl snapshot restore /tmp/snapshot-pre-boot.db \
+  --endpoints https://[127.0.0.1]:2379 \
+  --cacert /etc/kubernetes/pki/etcd/ca.crt \
+  --name master \
+  --cert /etc/kubernetes/pki/etcd/server.crt \
+  --key /etc/kubernetes/pki/etcd/server.key \
+  --data-dir /var/lib/etcd-from-backup \
+  --initial-cluster master=https://127.0.0.1:2380 \
+  --initial-cluster-token etcd-cluster-1 \
+  --initial-advertise-peer-urls https://127.0.0.1:2380
+
+sed -i 's/\/var\/lib\/etcd/\/var\/lib\/etcd-from-backup/g' /etc/kubernetes/manifests/etcd.yaml
+sed -i '/^    - --initial-cluster=/a\    - --initial-cluster-token=etcd-cluster-1' /etc/kubernetes/manifests/etcd.yaml
+
+mv /etc/kubernetes/kube-apiserver.yaml /etc/kubernetes/manifests
+
+kubectl get all #everything should be restored

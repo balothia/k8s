@@ -31,6 +31,8 @@ Generate POD Manifest YAML file (-o yaml). Don't create it(--dry-run)
 kubectl run --generator=run-pod/v1 nginx --image=nginx --dry-run -o yaml
 kubectl run --generator=run-pod/v1 redis --image=redis:alpine -l tier=db
 
+kubectl run --restart=Never --image=busybox static-busybox --dry-run -o yaml --command -- sleep 1000 > /etc/kubernetes/manifests/static-busybox.yaml
+
 Create a deployment
 kubectl create deployment --image=nginx nginx
 
@@ -43,6 +45,12 @@ kubectl create deployment --image=nginx nginx --dry-run -o yaml > nginx-deployme
 Save it to a file, make necessary changes to the file (for example, adding more replicas) and then create the deployment.
 kubectl run --generator=deployment/v1beta1 nginx --image=nginx --dry-run --replicas=4 -o yaml > nginx-deployment.yaml
 
+
+kubectl run nginx-deploy --image=nginx:1.16 --replicas=1 --record
+kubectl set image deployment/nginx-deploy nginx-deploy=nginx:1.17 --record=true
+
+
+
 Create a Service named redis-service of type ClusterIP to expose pod redis on port 6379
 kubectl expose pod redis --port=6379 --name redis-service --dry-run -o yaml
 kubectl create service clusterip redis --tcp=6379:6379 --dry-run -o yaml
@@ -50,6 +58,8 @@ kubectl expose pod nginx --port=80 --name nginx-service --dry-run -o yaml
 kubectl create service nodeport nginx --tcp=80:80 --node-port=30080 --dry-run -o yaml
 
 kubectl expose deployment webapp --type=NodePort --port=8080 --name=webapp-service --dry-run -o yaml > webapp-service.yaml
+kubectl expose deployment hr-web-app --type=NodePort --port=8080 --name=hr-web-app-service --dry-run -o yaml
+kubectl expose pod messaging --port=6379 --name messaging-service
 
 
 
@@ -76,6 +86,370 @@ kubectl label nodes node1 <label-key>=<label-value>
 kubectl label nodes node1 size=Large
 
 kubectl get daemonsets
+
+kubectl run --restart=Never --image=busybox static-busybox --dry-run -o yaml --command -- sleep 1000 > /etc/kubernetes/manifests/static-busybox.yaml
+
+kubectl get events
+kubectl logs my-custom-scheduler --namespace=kube-system
+
+kubectl -n kube-system get po
+git clone https://github.com/kodekloudhub/kubernetes-metrics-server.git
+
+kubectl set image deployment/myapp-deployment nginx=nginx:1.9.1
+
+kubectl apply -f my-deployment.yml
+kubectl rollout undo deployment/myapp-deployment
+kubectl rollout status deployment/myapp-deployment
+kubectl rollout history deployment/myapp-deployment
+kubectl set image deployment/frontend *=kodekloud/webapp-color:v2
+
+kubectl create configmap \
+    app-config --from-literal=APP_COLOR=blue \
+               --from-literal=APP_MOD=prod
+
+kubectl create configmap \
+    app-config  --from-file=app_config.properties
+
+kubectl create secret generic app-secret \
+    --from-literal=DB_HOST=mysql
+
+echo -n "passwd"|base64
+
+kubectl create secret generic db-secret --from-literal=DB_Host=sql01 --from-literal=DB_User=root --from-literal=DB_Password=password123
+
+kubectl drain node01 --ignore-daemonsets
+kubectl drain node02 --ignore-daemonsets --force
+kubectl cordon node01 #marks node unschedulable but will keep existing app/pods running
+kubectl uncordon node01
+
+kubeadm upgrade plan
+kubeadm upgrade apply v1.12.0
+apt-get upgrade -y kubeadm=1.12.0-00 # Upgrade the kubeadm before upgrade the cluster
+kubeadm upgrade apply v1.12.0
+apt-get upgrade -y kubelet=1.12.0-00
+kubeadm upgrade node config --kubelet-version v1.12.0
+systemctl restart kubelet
+
+apt install kubeadm=1.12.0-00
+
+##Backup##
+kubectl get all --all-namespaces -o yaml > all-deploy-services.yml
+ETCDCTL_API=3 etcdctl snapshot save snapshot.db
+etcdctl snapshot status snapshot.db
+
+ETCDCTL_API=3 etcdctl --endpoints=https://[127.0.0.1]:2379 --cacert=/etc/kubernetes/pki/etcd/ca.crt \
+     --cert=/etc/kubernetes/pki/etcd/server.crt --key=/etc/kubernetes/pki/etcd/server.key \
+     snapshot save /tmp/snapshot-pre-boot.db
+
+##Restore##
+systemc stop kube-apiserver
+ETCDCTL_API=3 etcdctl snapshot restore snapshot.db --data-dir /var/lib/etcd-from-backup \
+    --intial-cluster master-1=https://192.168.5.11:2380,master-2=https://192.168.5.12:2380 \
+    --intial-cluster-token etcd-cluster-1 \
+    --initial-advertise-peer-urls http://${INTERNAL_IP}:2380
+
+ETCDCTL_API=3 etcdctl --endpoints=https://[127.0.0.1]:2379 --cacert=/etc/kubernetes/pki/etcd/ca.crt \
+     --name=master \
+     --cert=/etc/kubernetes/pki/etcd/server.crt --key=/etc/kubernetes/pki/etcd/server.key \
+     --data-dir /var/lib/etcd-from-backup \
+     --initial-cluster=master=https://127.0.0.1:2380 \
+     --initial-cluster-token etcd-cluster-1 \
+     --initial-advertise-peer-urls=https://127.0.0.1:2380 \
+     snapshot restore /tmp/snapshot-pre-boot.db
+
+docker run --mount type=bind,source=/data/mysql,target=/var/lib/mysql mysql
+kubectl run -i -t busybox --image=busybox --restart=Never -- sh
+kubectl get persistentvolume
+
+kubectl exec webapp cat /log/app.log
+
+
+##### JSON Format #####
+kubectl get po -o json
+kubectl get po -o=jsonpath='{.item[0].spec.containers[0].image}'
+kubectl get nodes -o=jsonpath='{range.items[*]}.{.metadata.name}{"\t"}{.status.capacity.cpu}{"\n"}{end}'
+kubectl get no -o jsonpath='{range.items[*]}{$.metadata.name}{"\t"}{$.status.nodeInfo.osImage}{"\n"}{end}'
+kubectl get nodes -o=custom-columns=Node:.metadata.name,CPU:.status.capacity.cpu
+kubectl get nodes --sort-by=.status.capacity.cpu
+k get no -o jsonpath='{range.items[*]}{"InternalIP of "}{$.status.addresses[1].address}{" "}{$.status.addresses[0].address}{" "}{end}'
+
+curl -v -k https://master-node-ip:6443/api/v1/pods -u "user1:password123"
+
+curl -v -k https://kube-apiserver:6443/api/v1/pods --key admin.key --cert admin.crt --cacert ca.crt
+
+
+## Kubernetes Certificates ##
+Creating a CA for Kubernetes
+openssl genrsa -out ca.key 2048
+openssl req -new -key ca.key -subj "/CN=KUBERNETS-CA" -out ca.csr
+openssl x509 -req -in ca.csr -signkey ca.key -out ca.crt
+
+Admin certificate
+openssl genrsa -out admin.key 2048
+openssl req -new -key admin.key -subj "/CN=kube-admin/O=system:masters" -out admin.csr
+openssl x509 -req -in admin.csr -signkey ca.key -out admin.crt
+
+Kube-Scheduler certificate
+openssl genrsa -out scheduler.key 2048
+openssl req -new -key scheduler.key -subj "/CN=System:kube-scheduler/O=system:masters" -out scheduler.csr
+openssl x509 -req -in scheduler.csr -signkey ca.key -out scheduler.crt
+
+Kube-Controller-Manager certificate
+openssl genrsa -out controller-manager.key 2048
+openssl req -new -key controller-manager.key -subj "/CN=System:kube-controller-manager/O=system:masters" -out controller-manager.csr
+openssl x509 -req -in controller-manager.csr -signkey ca.key -out controller-manager.crt
+
+Kube-Proxy certificate
+openssl genrsa -out kubeproxy.key 2048
+openssl req -new -key kubeproxy.key -subj "/CN=System:kube-proxy/O=system:masters" -out kubeproxy.csr
+openssl x509 -req -in kubeproxy.csr -signkey ca.key -out kubeproxy.crt
+
+Kubelet certificates
+openssl genrsa -out kubelet.key 2048
+openssl req -new -key kubelet.key -subj "/cn=system:node:node01/o=system:nodes" -out kubelet.csr
+openssl x509 -req -in kubelet.csr -signkey ca.key -out kubelet.crt
+
+Kubelet certificates
+openssl genrsa -out kubelet.key 2048
+openssl req -new -key kubelet.key -subj "/cn=system:node:node02/o=system:nodes" -out kubelet.csr
+openssl x509 -req -in kubelet.csr -signkey ca.key -out kubelet.crt
+
+ETCD-Server certificate
+openssl genrsa -out etcdserver.key 2048
+openssl req -new -key etcdserver.key -subj "/CN=etcd-server" -out etcdserver.csr
+openssl x509 -req -in etcdserver.csr -signkey ca.key -out etcdserver.crt
+
+Kube-api server certificate
+openssl genrsa -out apiserver.key 2048
+openssl req -new -key apiserver.key -subj "/CN=kube-apiserver" -out apiserver.csr --config openssl.conf
+openssl x509 -req -in apiserver.csr -signkey ca.key -out apiserver.crt
+
+API server should include these names kubernetes, kubernetes.default, kubernetes.default.svc, kubernetes.default.svc.cluster.local
+create openssl.conf for multiple alias
+[req]
+req_extenssions = v3_req
+[ v3_req ]
+basicConstraints = CA:FALSE
+keyUsage = nonRepudiation,
+subjectAltName = @alt_names
+[ alt_names ]
+DNS.1 = kubernetes
+DNS.2 = kubernetes.default
+DNS.3 = kubernetes.default.svc
+DNS.4 = kubernetes.default.svc.cluster.local
+IP.1 = 10.96.01.
+IP.2 = 172.17.0.87
+
+
+Kube-apiserver-etcd-client server certificate
+openssl genrsa -out apiserver-etcd-client.key 2048
+openssl req -new -key apiserver-etcd-client.key -subj "/CN=kube-apiserver-etcd-client, O=system:masters" -out apiserver-etcd-client.csr
+openssl x509 -req -in /etc/kubernetes/pki/apiserver-etcd-client.csr -CA /etc/kubernetes/pki/etcd/ca.crt \
+    -CAkey /etc/kubernetes/pki/etcd/ca.key -CAcreateserial -out /etc/kubernetes/pki/apiserver-etcd-client.crt
+kubectl get csr
+kubectl certificate approve gautam
+kubectl get csr gautam -o yaml
+
+
+kubectl config view
+kubectl config view --kubeconfig=my-custom-config
+kubectl config use-context prod-user@production
+kubectl config use-context research --kubeconfig=my-kube-config
+
+## APIs ##
+curl http://localhost:6443 -k
+curl http://localhost:6443/apis -k |grep name
+kubectl proxy # after executing proxy command we can run below curl command without authentication. as it uses .kube/config file for authentication
+curl http://localhost:8001 -k
+kubectl get roles
+kubectl get rolebindings
+kubectl auth can-i create deployments
+kubectl auth can-i delete nodes
+
+kubectl auth can-i delete nodes --as dev-user
+
+kubectl api-resources
+
+kubectl create secret docker-registry regcred --docker-server=<> --docker-username=<> --docker-password=<> --docker-email=<>
+# after this edit pod and add
+imagePullSecrets
+    name: regcred
+
+    securityContext:
+      capabilities:
+        add: ["NET_ADMIN", "SYS_TIME"]
+
+  securityContext:
+    runAsUser: 1000
+
+kubectl exec -it ubuntu-sleeper -- date -s '19 APR 2012 11:14:00'
+
+## Networking ##
+ip netns add blue
+ip netns add red
+ip link
+ip netns exec red ip link
+ip -n red link
+dig www.google.com
+
+ip link add veth-red type veth peer name veth-blue
+ip link set veth-red netns red
+ip link set veth-blue netns blue
+
+ip -n red addr add 192.168.15.1 dev veth-red
+ip -n blue addr add 192.168.15.2 dev veth-blue
+ip -n red link set veth-red up
+ip -n blue link set veth-blue up
+
+ip netns exec red ping 192.168.15.2
+ip netns exec red arp
+ip -n red link del veth-red
+
+-> Create network bridge
+ip link add v-net-0 type bridge
+ip link set dev v-net-0 up
+ip link add veth-red type veth peer name veth-red-br
+ip link add veth-blue type veth peer name veth-blue-br
+
+ip link set veth-red netns red
+ip link ser veth-blue netns blue
+
+ip link set veth-red-br master v-net-0
+ip link set veth-blue-br master v-net-0
+ip -n red addr add 192.168.15.1 dev veth-red
+ip -n blue addr add 192.168.15.2 dev veth-blue
+
+ip -n red link set veth-red up
+ip -n blue link set veth-blue up
+
+ip addr add 192.168.15.5/24 dev v-net-0
+## set gateway ##
+ip netns exec red ip route add 192.168.1.0/24 via 192.168.15.5
+ip netns exec red ip route add default via 192.168.15.5
+## configure nat ##
+iptables -t nat -A POSTROUTING -s 192.168.15.0/24 -j MASQUERADE
+iptables -t nat -A PREROUTING --dport 80 --to-detsination 192.168.15.2:80 -j DNAT
+
+----------------
+docker run --network host nginx
+docker network ls
+iptables -t nat -A PREROUTING -j DNAT --dport 8080 --to-destination 80
+iptables -t nat -A DOCKER -j DNAT --dport 8080 --to-destination 172.17.0.3:80
+iptables -nvL -t nat
+iptables -t -L net |grep db-service
+cat /var/log/kube-proxy.log
+
+kubectl exec busybox ip route
+
+## Deploy Weave ##
+kubectl apply -f "https://cloud.weave.works/k8s/net?k8s-version=$(kubectl version|base64 |tr -d '\n')"
+kubectl logs weave-net-5gcmb weave -n kube-system
+docker inspect <>
+
+
+## Deploy Ingress Controller ##
+kubectl create namespace ingress-space
+kubectl create configmap nginx-configuration --namespace ingress-space
+kubectl create serviceaccount ingress-serviceaccount --namespace ingress-space
+
+kubectl expose deployment -n ingress-space ingress-controller --type=NodePort --port=80 --name=ingress --dry-run -o yaml
+--Ingress Role--
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  labels:
+    app.kubernetes.io/name: ingress-nginx
+    app.kubernetes.io/part-of: ingress-nginx
+  name: ingress-role
+  namespace: ingress-space
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  - pods
+  - secrets
+  - namespaces
+  verbs:
+  - get
+- apiGroups:
+  - ""
+  resourceNames:
+  - ingress-controller-leader-nginx
+  resources:
+  - configmaps
+  verbs:
+  - get
+  - update
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  verbs:
+  - create
+- apiGroups:
+  - ""
+  resources:
+  - endpoints
+  verbs:
+  - get
+
+-------------
+--Ingress Rolebinding --
+kind: RoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/name: ingress-nginx
+    app.kubernetes.io/part-of: ingress-nginx
+  name: ingress-role-binding
+  namespace: ingress-space
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: ingress-role
+subjects:
+- kind: ServiceAccount
+  name: ingress-serviceaccount
+---------------
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

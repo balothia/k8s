@@ -1,0 +1,11 @@
+apiVersion: extensions/v1beta1
+kind: NetworkPolicy
+metadata:
+  creationTimestamp: 2020-02-02T23:31:47Z
+  generation: 1
+  name: default-deny
+  namespace: default
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
